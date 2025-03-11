@@ -1,5 +1,5 @@
 # Port: 5000
-# Routes: /getAccountRequests (GET), /getCountries (GET), /getListings (GET), /getListingsByIDs (POST), /getListing/<id> (GET), /getProducers (GET), /getProducer/<id> (GET),
+# Routes: /getAccountRequests (GET), /getCountries (GET), /getListings (GET), /getListingsByIDs (POST), /getListing/<id> (GET), /getProducers (GET), /getProducer/<id> (GET), /getRandomListings (GET),
 #           /getRecentListingReviews/<id> (GET), /getAllListingsNames (GET), /getBookmarkListings (POST), /getUserReviewSummary/<id> (GET),
 #           /getReviews (GET), /getReviewByTarget/<id> (GET), /getReviewsByUserIds (GET), /getProducerTourReviews (GET), /getUsers (GET), /getUser/<id> (GET), 
 #           /getUserPhoto/<id>/<userType> (GET), /getUserByUsername/<username> (GET), /getVenues (GET),
@@ -26,6 +26,7 @@ import random
 import feedparser
 import re
 import requests
+import psycopg2.extras
 from bs4 import BeautifulSoup
 
 
@@ -619,6 +620,43 @@ def getListing(id):
         return jsonify([])
     
     return jsonify(listing_data)
+
+# -----------------------------------------------------------------------------------------
+# [GET] Reverse Search Image Results, getting lsiting based on logo
+@blueprint.route("/getListingsByLogo", methods=["POST"])
+def get_listings_by_logo():
+    data = request.json
+    detected_logo = data.get("logo")
+
+    if not detected_logo:
+        return jsonify({"error": "No logo provided"}), 400
+
+    conn = g.db  # Assuming you are using Flask's g for database connection
+    with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cursor:
+        # Query producer using detected logo
+        cursor.execute(
+            'SELECT "id", "producerName" FROM "producers" WHERE LOWER(TRIM("producerName")) ILIKE %s LIMIT 1',
+            (f"%{detected_logo.lower()}%",)
+        )
+        producer = cursor.fetchone()
+
+        if not producer:
+            return jsonify({"error": "No matching producer found"}), 404
+
+        producer_id = producer["id"]
+        producer_name = producer["producerName"]
+
+        # Get listings by producer ID
+        cursor.execute('SELECT * FROM "listings" WHERE "producerID" = %s LIMIT 30', (producer_id,))
+        listings = cursor.fetchall()
+
+        if not listings:
+            return jsonify({"message": f"No listings found for {producer_name}"}), 404
+
+        # Convert to a list of dictionaries
+        listings_list = [dict(listing) for listing in listings]
+
+    return jsonify(listings_list), 200
 
 # [GET] Specific Listings By Producer
 @blueprint.route("/getListingsByProducer/<id>")

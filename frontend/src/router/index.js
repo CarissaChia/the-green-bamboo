@@ -64,6 +64,11 @@ const routes = [
     component: () => import('../views/ImageSearchView.vue')
   },
   {
+    path: '/imageSearchResults',
+    name: 'imagesearchresults',
+    component: () => import('../views/ImageSearchResults.vue')
+  },
+  {
     path: '/successfulOnboarding',
     name: 'successfulonboarding',
     component: () => import('../views/SuccessfulOnboarding.vue')

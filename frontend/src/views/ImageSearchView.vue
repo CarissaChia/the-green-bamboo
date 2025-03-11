@@ -89,6 +89,7 @@ export default {
       imagePreview: false, // Controls image visibility
       showPopup: false, // Controls popup display
       isHumanChecked: false, // New property to track checkbox state
+      apiKey: process.env.VUE_APP_GOOGLE_VISION_API_KEY,
     };
   },
   methods: {
@@ -182,21 +183,80 @@ export default {
     },
 
     onSubmitImage() {
-      if (this.uploadedImage || this.imageLink.trim()) {
-        const imageToSend = this.uploadedImage || this.imageLink;
-        this.reverseImageSearch(imageToSend);
-      } else {
-        console.error("No image to submit");
-      }
-    },
-    reverseImageSearch(image) {
-      console.log("Sending image to reverse image search API:", image);
-      // Actual API call would go here
-    },
+  if (this.uploadedImage || this.imageLink.trim()) {
+    const imageToSend = this.uploadedImage || this.imageLink;
+
+    // Call reverse image search and route to results page
+    this.reverseImageSearch(imageToSend)
+      .then((detectedLogo) => {
+        if (detectedLogo) {
+          // Navigate to results page with the detected logo in query params
+          this.$router.push({
+            path: "/imageSearchResults",
+            query: { logo: detectedLogo },
+          });
+        } else {
+          console.error("No logo detected");
+        }
+      })
+      .catch((error) => console.error("Error in reverse image search:", error));
+  } else {
+    console.error("No image to submit");
+  }
+},
+
+
+async reverseImageSearch(image) {
+  try {
+    let base64Image = image.startsWith("data:image")
+      ? image.replace(/^data:image\/(png|jpeg);base64,/, "")
+      : await this.convertToBase64(await (await fetch(image)).blob());
+
+    const visionApiUrl = `https://vision.googleapis.com/v1/images:annotate?key=${this.apiKey}`;
+    
+    const visionRequest = {
+      requests: [
+        {
+          image: { content: base64Image },
+          features: [{ type: "LOGO_DETECTION" }],
+        },
+      ],
+    };
+
+    const visionResponse = await fetch(visionApiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(visionRequest),
+    });
+
+    const visionData = await visionResponse.json();
+    console.log("Google Vision API Response:", visionData);
+
+    if (
+      !visionData.responses ||
+      !visionData.responses[0].logoAnnotations ||
+      visionData.responses[0].logoAnnotations.length === 0
+    ) {
+      console.error("No logo detected");
+      return null;
+    }
+
+    const detectedLogo = visionData.responses[0].logoAnnotations[0].description;
+    console.log("Detected Logo:", detectedLogo);
+
+    return detectedLogo; // Return the detected logo so it can be used in onSubmitImage()
+
+  } catch (error) {
+    console.error("Error in reverse image search:", error);
+    return null;
+  }
+},
+
     onDragOver(event) {
       event.preventDefault();
       this.isDragging = true;
     },
+
     onDragLeave() {
       this.isDragging = false;
     },

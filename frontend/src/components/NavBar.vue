@@ -85,7 +85,7 @@
                         <div class="mobile-view-show">
                             <li><router-link :to="'/explore'" class="dropdown-item">Explore</router-link></li>
                             <li><router-link :to="'/foryou'" class="dropdown-item">For You</router-link></li>
-                            <li><router-link :to="'/explore'" class="dropdown-item">Best Of</router-link></li>
+                            <li><router-link :to="'/ImageSearchResults'" class="dropdown-item">Best Of</router-link></li>
                             <li><router-link :to="dashboardURL" class="dropdown-item">{{ dashboardWord }} Dashboard</router-link></li>
                             <li><span  @click="externalURL('https://88bamboo.co/')" class="dropdown-item">Latest News</span></li>
                             <li v-if="onRequest && accType == 'user'"><span  @click="forceLoad('/request/new')" class="dropdown-item text-decoration-none">Submit A Drink</span></li>
@@ -132,7 +132,7 @@
                     </button>
                 </router-link>
 
-                <router-link :to="'/explore'">
+                <router-link :to="'/ImageSearchResults'">
                     <button class="btn primary-btn border-0 fw-bold" type="button">
                         Best Of
                     </button>
