@@ -183,74 +183,145 @@ export default {
     },
 
     onSubmitImage() {
-  if (this.uploadedImage || this.imageLink.trim()) {
-    const imageToSend = this.uploadedImage || this.imageLink;
+      
+      if (this.uploadedImage || this.imageLink.trim()) {
+        const imageToSend = this.uploadedImage || this.imageLink;
+        // Call reverse image search and route to results page
+        this.reverseImageSearch(imageToSend)
+          .then((detectedLogo) => {
+            if (detectedLogo) {
+              // Navigate to results page with the detected logo in query params
+              this.$router.push({
+                path: "/imageSearchResults",
+                query: { logo: detectedLogo },
+              });
+            } else {
+              console.error("No logo detected");
+              this.triggerPopup("We couldn't detect any logo in the image, please search manually or try another image!");
+            }
+          })
+          .catch((error) => console.error("Error in reverse image search:", error));
+      } else {
+        console.error("No image to submit");
+        this.triggerPopup("No image detected, please upload an image or enter a link before submitting!")
+      }
+    },
 
-    // Call reverse image search and route to results page
-    this.reverseImageSearch(imageToSend)
-      .then((detectedLogo) => {
-        if (detectedLogo) {
-          // Navigate to results page with the detected logo in query params
-          this.$router.push({
-            path: "/imageSearchResults",
-            query: { logo: detectedLogo },
-          });
+    async reverseImageSearch(image) { 
+    try {
+        let base64Image;
+
+        if (image.startsWith("data:image")) {
+            // If it's a base64-encoded image from an upload
+            base64Image = image.replace(/^data:image\/(png|jpeg|jpg);base64,/, "");
+        } else if (image.startsWith("http")) {
+            // If it's a direct image URL, fetch it and convert to base64
+            const response = await fetch(image);
+            const blob = await response.blob();
+            base64Image = await this.convertToBase64(blob);
         } else {
-          console.error("No logo detected");
+            console.error("Invalid image format.");
+            return null;
         }
-      })
-      .catch((error) => console.error("Error in reverse image search:", error));
-  } else {
-    console.error("No image to submit");
-  }
-},
 
+        const visionApiUrl = `https://vision.googleapis.com/v1/images:annotate?key=${this.apiKey}`;
+        
+        const visionRequest = {
+            requests: [
+                {
+                    image: { content: base64Image },
+                    features: [{ type: "LOGO_DETECTION" }],
+                },
+            ],
+        };
 
-async reverseImageSearch(image) {
-  try {
-    let base64Image = image.startsWith("data:image")
-      ? image.replace(/^data:image\/(png|jpeg);base64,/, "")
-      : await this.convertToBase64(await (await fetch(image)).blob());
+        const visionResponse = await fetch(visionApiUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(visionRequest),
+        });
 
-    const visionApiUrl = `https://vision.googleapis.com/v1/images:annotate?key=${this.apiKey}`;
-    
-    const visionRequest = {
-      requests: [
-        {
-          image: { content: base64Image },
-          features: [{ type: "LOGO_DETECTION" }],
-        },
-      ],
-    };
+        const visionData = await visionResponse.json();
+        console.log("Google Vision API Response:", visionData);
 
-    const visionResponse = await fetch(visionApiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(visionRequest),
-    });
+        if (!visionData.responses || !visionData.responses[0].logoAnnotations || visionData.responses[0].logoAnnotations.length === 0) {
+            console.error("No logo detected");
+            return null;
+        }
 
-    const visionData = await visionResponse.json();
-    console.log("Google Vision API Response:", visionData);
+        const detectedLogo = visionData.responses[0].logoAnnotations[0].description;
+        console.log("Detected Logo:", detectedLogo);
 
-    if (
-      !visionData.responses ||
-      !visionData.responses[0].logoAnnotations ||
-      visionData.responses[0].logoAnnotations.length === 0
-    ) {
-      console.error("No logo detected");
-      return null;
+        return detectedLogo; // Return detected logo for use in onSubmitImage()
+    } catch (error) {
+        console.error("Error in reverse image search:", error);
+        return null;
     }
-
-    const detectedLogo = visionData.responses[0].logoAnnotations[0].description;
-    console.log("Detected Logo:", detectedLogo);
-
-    return detectedLogo; // Return the detected logo so it can be used in onSubmitImage()
-
-  } catch (error) {
-    console.error("Error in reverse image search:", error);
-    return null;
-  }
 },
+
+// Helper function to convert an image blob to base64
+async convertToBase64(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onload = () => resolve(reader.result.replace(/^data:image\/(png|jpeg|jpg);base64,/, ""));
+        reader.onerror = error => reject(error);
+    });
+},
+    // async reverseImageSearch(image) {
+    //   let base64Image;
+
+    //     if (image.startsWith("data:image")) {
+    //         // If it's a base64-encoded image from an upload
+    //         base64Image = image.replace(/^data:image\/(png|jpeg|jpg);base64,/, "");
+    //     } else if (image.startsWith("http")) {
+    //         // If it's a direct image URL, fetch it and convert to base64
+    //         const response = await fetch(image);
+    //         const blob = await response.blob();
+    //         base64Image = await this.convertToBase64(blob);
+    //     } else {
+    //         console.error("Invalid image format.");
+    //         return null;
+    //     }
+    //     const visionApiUrl = `https://vision.googleapis.com/v1/images:annotate?key=${this.apiKey}`;
+        
+    //     const visionRequest = {
+    //       requests: [
+    //         {
+    //           image: { content: base64Image },
+    //           features: [{ type: "LOGO_DETECTION" }],
+    //         },
+    //       ],
+    //     };
+
+    //     const visionResponse = await fetch(visionApiUrl, {
+    //       method: "POST",
+    //       headers: { "Content-Type": "application/json" },
+    //       body: JSON.stringify(visionRequest),
+    //     });
+
+    //     const visionData = await visionResponse.json();
+    //     console.log("Google Vision API Response:", visionData);
+
+    //     if (
+    //       !visionData.responses ||
+    //       !visionData.responses[0].logoAnnotations ||
+    //       visionData.responses[0].logoAnnotations.length === 0
+    //     ) {
+    //       console.error("No logo detected");
+    //       return null;
+    //     }
+
+    //     const detectedLogo = visionData.responses[0].logoAnnotations[0].description;
+    //     console.log("Detected Logo:", detectedLogo);
+
+    //     return detectedLogo; // Return the detected logo so it can be used in onSubmitImage()
+
+    //   } catch (error) {
+    //     console.error("Error in reverse image search:", error);
+    //     return null;
+    //   }
+    // },
 
     onDragOver(event) {
       event.preventDefault();
